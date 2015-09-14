@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+
+		<!--引入Three.js-->
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r71/three.min.js"></script>
+
+		<style type="text/css">
+			body {
+				background-color: #E5E5E5;
+				font-family: "Segoe UI","Lucida Grande",Helvetica,Arial,"Microsoft YaHei",FreeSans,Arimo,"Droid Sans","wenquanyi micro hei","Hiragino Sans GB","Hiragino Sans GB W3",sans-serif;
+			}
+			#canvas3d{
+				border: none;
+				margin: auto;
+				width: 700px;
+				height: 600px;
+				box-shadow: 0px 5px 50px rgba(0, 0, 0, 0.8);
+				background-color: #000000;
+			}
+		</style>
+
+		<script id="vertexShader" type="x-shader/x-vertex">
+			uniform vec3 viewVector;
+			uniform float c;
+			uniform float p;
+			varying float intensity;
+			void main() 
+			{
+				vec3 vNormal = normalize( normalMatrix * normal );
+				vec3 vNormel = normalize( normalMatrix * viewVector );
+				intensity = pow( c - dot(vNormal, vNormel), p );
+				
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+			}
+		</script>
+
+		<!-- fragment shader a.k.a. pixel shader -->
+		<script id="fragmentShader" type="x-shader/x-vertex"> 
+			uniform vec3 glowColor;
+			varying float intensity;
+			void main() 
+			{
+				vec3 glow = glowColor * intensity;
+				gl_FragColor = vec4( glow, 1.0 );
+			}
+		</script>
+	</head>
+
+	<body>
+		<!--盛放canvas的容器-->
+		<div id="canvas3d"></div>
+	</body>
+	<script type="text/javascript">
+		//开启Three.js渲染器
+		cavDiv = document.getElementById('canvas3d');
+		width = cavDiv.clientWidth;//获取画布「canvas3d」的宽
+		height = cavDiv.clientHeight;//获取画布「canvas3d」的高
+		var renderer = new THREE.WebGLRenderer({antialias:true});//生成渲染器对象（属性：抗锯齿效果为设置有效）
+		renderer.setSize(width, height );//指定渲染器的高宽（和画布框大小一致）
+		this.renderer.shadowMapEnabled = true;
+		this.renderer.shadowMapSoft = true;
+		cavDiv.appendChild(renderer.domElement);//追加 【canvas】 元素到 【canvas3d】 元素中。
+		//renderer.setClearColor(0x000000, 0.0);//设置canvas背景色(clearColor)
+
+		//设置相机
+		var camera = new THREE.PerspectiveCamera( 45, width / height , 1 , 50000 );//设置透视投影的相机,默认情况下相机的上方向为Y轴，右方向为X轴，沿着Z轴朝里（视野角：fov 纵横比：aspect 相机离视体积最近的距离：near 相机离视体积最远的距离：far）
+		camera.position.x = 0;//设置相机的位置坐标
+		camera.position.y = 0;//设置相机的位置坐标
+		camera.position.z = 500;//设置相机的位置坐标
+		camera.up.x = 0;//设置相机的上为「x」轴方向
+		camera.up.y = 0;//设置相机的上为「y」轴方向
+		camera.up.z = 0;//设置相机的上为「z」轴方向
+		camera.lookAt( {x:0, y:0, z:0 } );//设置视野的中心坐标
+
+		//设置场景
+		var scene = new THREE.Scene();
+		scene.add(new THREE.AmbientLight(0x000000));
+
+		//设置光源
+		var light = new THREE.PointLight(0xffffff, 2, 1500);
+		light.position.set(0, 1, 0);
+		scene.add(light);
+
+		//设置物体
+		var sun = new THREE.Mesh(
+			new THREE.SphereGeometry(30, 32, 16),
+			new THREE.MeshBasicMaterial({color: 0xFF9900})
+		);
+		sun.position.set(0, 0, 0);
+		scene.add(sun);
+
+		var blue = new THREE.Mesh(
+			new THREE.SphereGeometry(20, 32, 16),
+			new THREE.MeshPhongMaterial({color: 0x0066B2})
+		);
+		var blueR = 200;
+		scene.add(blue);
+
+		this.blueGlow = new THREE.Mesh(
+			new THREE.SphereGeometry(25, 32, 16),
+			new THREE.ShaderMaterial({
+				uniforms: 
+				{ 
+					"c":   { type: "f", value: 1.0 },
+					"p":   { type: "f", value: 1 },
+					glowColor: { type: "c", value: new THREE.Color(0xffffff) },
+					viewVector: { type: "v3", value: camera.position }
+				},
+				vertexShader:   document.getElementById( 'vertexShader'   ).textContent,
+				fragmentShader: document.getElementById( 'fragmentShader' ).textContent,
+				side: THREE.FrontSide,
+				blending: THREE.AdditiveBlending,
+				transparent: true
+			})
+		);
+		scene.add(blueGlow);
+
+		var moon = new THREE.Mesh(
+			new THREE.SphereGeometry(10, 32, 16),
+			new THREE.MeshPhongMaterial({color: 0xffffff})
+		);
+		var moonR = 70;
+		scene.add(moon);
+
+
+		//设置刷新
+		var spf = 1000/60;
+		var a = 0;
+		var ma = 0;
+		var anm = setInterval(function(){
+			blueGlow.position.x = blue.position.x = sun.position.x + blueR * Math.cos(a * Math.PI / 180);
+			blueGlow.position.y = blue.position.y = sun.position.y + blueR * Math.sin(a * Math.PI / 180);
+
+			a++
+			if (a === 360) {
+				a = 0;
+			};
+
+			moon.position.x = blue.position.x + moonR * Math.cos(ma * Math.PI / 180);
+			moon.position.y = blue.position.y + moonR * Math.sin(ma * Math.PI / 180);
+			ma+=5
+			if (ma === 360) {
+				ma = 0;
+			};
+
+			blueGlow.material.uniforms.viewVector.value = new THREE.Vector3().subVectors( camera.position, blueGlow.position );
+
+			//===============================
+			renderer.clear();
+			renderer.render(scene, camera);
+		}, spf);
+
+	</script>
+</html>
