@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+
+		<!--引入Three.js-->
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r71/three.min.js"></script>
+
+		<style type="text/css">
+			body {
+				background-color: #E5E5E5;
+				margin: 0;
+			}
+			#canvas3d{
+				position: absolute;
+				width: 100%;
+				height: 100%;
+				background-color: #000000;
+			}
+		</style>
+
+	</head>
+
+	<body>
+		<!--盛放canvas的容器-->
+		<div id="canvas3d"></div>
+	</body>
+	<script type="text/javascript">
+		//开启Three.js渲染器
+		cavDiv = document.getElementById('canvas3d');
+		width = cavDiv.clientWidth;//获取画布「canvas3d」的宽
+		height = cavDiv.clientHeight;//获取画布「canvas3d」的高
+		var renderer = new THREE.WebGLRenderer({antialias:true});//生成渲染器对象（属性：抗锯齿效果为设置有效）
+		renderer.setSize(width, height );//指定渲染器的高宽（和画布框大小一致）
+		this.renderer.shadowMapEnabled = true;
+		this.renderer.shadowMapSoft = true;
+		cavDiv.appendChild(renderer.domElement);//追加 【canvas】 元素到 【canvas3d】 元素中。
+		//renderer.setClearColor(0x000000, 0.0);//设置canvas背景色(clearColor)
+
+		//设置相机
+		var camera = new THREE.PerspectiveCamera( 45, width / height , 1 , 50000 );//设置透视投影的相机,默认情况下相机的上方向为Y轴，右方向为X轴，沿着Z轴朝里（视野角：fov 纵横比：aspect 相机离视体积最近的距离：near 相机离视体积最远的距离：far）
+		camera.position.x = 0;//设置相机的位置坐标
+		camera.position.y = 0;//设置相机的位置坐标
+		camera.position.z = 8000;//设置相机的位置坐标
+		camera.up.x = 0;//设置相机的上为「x」轴方向
+		camera.up.y = 0;//设置相机的上为「y」轴方向
+		camera.up.z = 0;//设置相机的上为「z」轴方向
+		camera.lookAt( {x:0, y:0, z:0 } );//设置视野的中心坐标
+
+		//设置场景
+		var scene = new THREE.Scene();
+		scene.add(new THREE.AmbientLight(0x000000));
+
+		//设置光源
+		/*var light = new THREE.PointLight(0xffffff, 2, 1500);
+		light.position.set(0, 1, 0);
+		scene.add(light);*/
+
+		//设置物体
+		var m = new THREE.MeshBasicMaterial({color: 0xFF9900});
+		function Star (radius, quality, x, y, z) {
+			this.volume = Math.pow(4 * Math.PI * radius, 3) / 3;
+			this.radius = radius;
+			this.quality = quality;
+			this.model = new THREE.Mesh(
+				new THREE.SphereGeometry(this.radius, 32, 16),
+				m
+			);
+			this.model.position.set(x, y, z);
+			scene.add(this.model);
+			this.force = 0;
+			this.radian = 0;
+		}
+
+		var stars = new Array();
+		for (var i = 0; i < 500; i++) {
+			stars.push(new Star(
+				Math.random() * 30,
+				Math.random() * 100,
+				Math.random() * 5000 - 2500,
+				Math.random() * 3000 - 1500,
+				0
+			))
+		};
+		//stars.push(new Star(100, 1000, -500, 0, 0)); stars.push(new Star(100, 1000, 0, 500, 0))
+
+		function getDistance (a, b) {
+			return Math.sqrt(Math.pow(a.model.position.x - b.model.position.x, 2) + Math.pow(a.model.position.y - b.model.position.y, 2));
+		}
+
+		function getRadian(a, b, d) {
+			var x = a.model.position.x - b.model.position.x
+			var y = a.model.position.y - b.model.position.y
+
+			cos = x / Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+			radian = Math.acos(cos);
+
+			if (y < 0) {
+			    radian = 2*Math.PI - radian;
+			} else if ((y === 0) && (x < 0)) {
+			    radian = Math.PI;
+			}
+			return radian;
+		}
+
+		function setGravity (a, b) {
+			var d = getDistance(a, b)
+			var radian = getRadian(a, b, d)
+			var forceG = 8*(a.quality * b.quality) / Math.pow(d, 2)
+			sf(a, radian, forceG)
+		}
+
+		function work (a) {
+			a.model.position.x -= a.force * Math.cos(a.radian)
+			a.model.position.y -= a.force * Math.sin(a.radian)
+		}
+
+		function merge (a, b) {
+			a.volume += b.volume
+			a.quality += b.quality;
+			a.radius = Math.pow(a.volume * 3, 1 / 3) / 4 / Math.PI;
+			a.model.geometry = new THREE.SphereGeometry(a.radius, 32, 16);
+			scene.remove(b.model);
+			sf(a, b.radian, b.force)
+		}
+
+		function sf (a, radian, force) {
+			if (a.force === 0) {
+				a.force = force
+				a.radian = radian
+				return
+			}
+
+			if (force === 0) {
+				return
+			}
+
+			var cR = Math.abs(a.radian - radian)
+			switch (cR) {
+				case 0:
+					a.force += force
+					return
+				case Math.PI:
+					if (a.force === force) {
+						a.force = 0
+						return
+					} else {
+						a.force -= force
+					}
+					break
+				default:
+					if (a.radian < radian) {
+						if (cR < Math.PI) {
+							switch (true) {
+								case a.force > force:
+									a.radian = a.radian + cR * (force/a.force)
+									break
+								case a.force < force:
+									a.radian = radian - cR * (a.force/force)
+									break
+								default:
+									a.radian += cR / 2
+							}
+						} else {
+							switch (true) {
+								case a.force > force:
+									a.radian = a.radian - cR * (force/a.force)
+									break
+								case a.force < force:
+									a.radian = radian + cR * (a.force/force)
+									break
+								default:
+									a.radian -= cR / 2
+							}
+						}
+					} else {
+						if (cR < Math.PI) {
+							switch (true) {
+								case a.force > force:
+									a.radian = a.radian - cR * (force/a.force)
+									break
+								case a.force < force:
+									a.radian = radian + cR * (a.force/force)
+									break
+								default:
+									a.radian -= cR / 2
+							}
+						} else {
+							switch (true) {
+								case a.force > force:
+									a.radian = a.radian + cR * (force/a.force)
+									break
+								case a.force < force:
+									a.radian = radian - cR * (a.force/force)
+									break
+								default:
+									a.radian += cR / 2
+							}
+						}
+					}
+					a.force = (2*Math.PI - cR)/(2*Math.PI) * (a.force + force)
+			}
+
+			if (a.force < 0) {
+				a.force = -a.force
+				a.radian = (a.radian + Math.PI) % (2*Math.PI)
+			}
+			if (a.radian < 0) {
+				a.radian = 2*Math.PI - a.radian
+			}
+
+		}
+
+		//设置刷新
+		setInterval(function(){
+			
+			for (var i = 0; i < stars.length; i++) {
+				
+				if (stars[i] != null) {
+					for (var j = 0; j < stars.length; j++) {
+						if (j != i && stars[j] != null) {
+							setGravity(stars[i], stars[j])
+						};
+					};
+				};
+			};
+
+			for (var i = 0; i < stars.length; i++) {
+				if (stars[i] != null) {
+
+					work(stars[i])
+
+					for (var j = 0; j < stars.length; j++) {
+						if (j != i && stars[j] != null) {
+							if (getDistance(stars[i], stars[j]) < stars[i].radius + stars[j].radius) {
+								var a, b
+								if (stars[i].volume > stars[j].volume) {
+									merge(stars[i], stars[j])
+									delete stars[j]
+								} else {
+									merge(stars[j], stars[i])
+									delete stars[i]
+									break;
+								}
+							};
+						};
+					};
+				};
+			};
+
+
+			//===============================
+			
+		}, 10);
+
+		requestAnimationFrame(function anm() {
+			renderer.clear();
+			renderer.render(scene, camera);
+			requestAnimationFrame(anm);
+		})
+
+	</script>
+</html>
